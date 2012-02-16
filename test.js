@@ -1,12 +1,12 @@
-var queue   = require('./queue.js');
+var work    = require('./work-queue.js');
 
 // Establish the tasks to execute
-queue.addTask(one,  complete);
-queue.addTask(one,  complete);
-queue.addTask(one,  complete);
+work.push(one,  complete);
+work.push(one,  complete);
+work.push(last, complete);
 
 // Begin execution
-queue.next({level: 0}, fullCompletion);
+work.run({level: 0}, fullCompletion);
 
 /*****************************************************************************
  * Task definitions.
@@ -19,13 +19,13 @@ function fullCompletion(type, state, err, res)
     console.log("fullCompletion: type[ %s ], state[ %j ], err[ %j ], res[ %j ]",
                 type, state, err, res);
 
-    var len = this.queueLength();
-    console.log("%d tasks in queue", len);
+    var len = this.length();
+    console.log("%d tasks in work queue", len);
 
     if (len > 0)
     {
         // Start it up again
-        queue.next(state, fullCompletion);
+        work.run(state, fullCompletion);
     }
 }
 
@@ -86,4 +86,28 @@ function one(state)
     }
 
     wait();
+}
+
+/** @brief  A task run routine.
+ *  @param  state   The processing state;
+ *
+ *  'this' is the currently running task.  Upon completion, this routine MUST
+ *  emit a 'complete' event:
+ *      this.emit('complete', err, res);
+ */
+function last(state)
+{
+    var self    = this;
+
+    console.log('%s (last): state[ %j ]', self.label, state);
+
+    var cos     = Math.round(100 - (Math.random() * state.level * 20)) / 100;
+
+    state.res = (state.res ? state.res + 1 : 1);
+
+    return self.emit('complete',
+                     (Math.random() >= cos
+                        ? {error: 'random error (last)'}
+                        : null),
+                      state.res);
 }

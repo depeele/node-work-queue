@@ -1,6 +1,6 @@
 /** @file
  *
- *  A simple, syncrhonous work-queue.
+ *  A simple, synchronous, FIFO work-queue.
  *
  */
 var util    = require('util'),
@@ -23,7 +23,7 @@ util.inherits(Task, events.EventEmitter);
 
 
 module.exports = {
-    /** @brief  Add a task to the queue.
+    /** @brief  Add a task to the end of the work-queue.
      *  @param  run         The function to invoke when this task is ready for
      *                      execution.  When the task completes, it MUST emit
      *                      a 'complete' event with two parameters, err, and
@@ -37,7 +37,7 @@ module.exports = {
      *
      *  @return this for a fluent interface;
      */
-    addTask: function(run, complete, label) {
+    push: function(run, complete, label) {
         if ( typeof run !== 'function' )
         {
             throw new Error("A task must have an 'run' function");
@@ -53,7 +53,24 @@ module.exports = {
         return this;
     },
 
-    /** @brief  Pop the next task and begin its execution.
+    /** @brief  Removes the task from the end of the work-queue.
+     *
+     *  @return the task from the end of the work-queue.
+     */
+    pop: function() {
+        return queue.pop();
+    },
+
+    /** @brief  Removes the task from the beginning of the work-queue.
+     *
+     *  @return the task from the end of the work-queue.
+     */
+    shift: function() {
+        return queue.shift();
+    },
+
+    /** @brief  Remove the task from the beginning of the work-queue and
+     *          begin its execution.
      *  @param  state   The current processing state;
      *  @param  onStop  If provided, a function to invoke whenever tasking is
      *                  stopped, either due to a task.complete() callback
@@ -64,7 +81,7 @@ module.exports = {
      *
      *  @return this for a fluent interface;
      */
-    next: function(state, onStop) {
+    run: function(state, onStop) {
         var self    = this,
             task;
 
@@ -75,7 +92,7 @@ module.exports = {
             }
         };
 
-        if ( (queue.length > 0) && (task = queue.shift()) )
+        if ( (task = self.shift()) )
         {
             task.once('complete', function(err, res) {
                 // If the callback returns false, terminate processing
@@ -85,7 +102,7 @@ module.exports = {
                 }
 
                 // Move on to the next task
-                self.next(state, onStop);
+                self.run(state, onStop);
             });
 
             // Invoke this task
@@ -111,7 +128,7 @@ module.exports = {
      *
      *  @return The queue length (integer);
      */
-    queueLength: function() {
+    length: function() {
         return queue.length;
     }
 };
