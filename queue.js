@@ -25,9 +25,10 @@ util.inherits(Task, events.EventEmitter);
 module.exports = {
     /** @brief  Add a task to the queue.
      *  @param  run         The function to invoke when this task is ready for
-     *                      execution.  When the task completes, it MUST invoke
-     *                      next(err, res) to keep the task queue processing.
-     *                          run(state, next)
+     *                      execution.  When the task completes, it MUST emit
+     *                      a 'complete' event with two parameters, err, and
+     *                      res:
+     *                          this.emit('complete', err, res);
      *  @param  complete    If provided, this function will be invoked once
      *                      run() completes.  If this function returns false,
      *                      tasking will cease
@@ -54,27 +55,63 @@ module.exports = {
 
     /** @brief  Pop the next task and begin its execution.
      *  @param  state   The current processing state;
+     *  @param  onStop  If provided, a function to invoke whenever tasking is
+     *                  stopped, either due to a task.complete() callback
+     *                  returning false or the queue being emptied
+     *                      onStop(type, state, err, res);
+     *
+     *                  Where 'type' may be 'error' or 'empty'.
      *
      *  @return this for a fluent interface;
      */
-    next: function(state) {
+    next: function(state, onStop) {
         var self    = this,
             task;
 
+        var stop    = function(type, err, res) {
+            if (onStop && (typeof onStop === 'function'))
+            {
+                onStop.call(self, type, state, err, res);
+            }
+        };
+
         if ( (queue.length > 0) && (task = queue.shift()) )
         {
-            task.run.call(task, state, function(err, res) {
+            task.once('complete', function(err, res) {
                 // If the callback returns false, terminate processing
                 if (task.complete.call(task, state, err, res) === false)
                 {
-                    return;
+                    return stop('error', err, res);
                 }
 
-                // Invoke the next task
-                self.next(state);
+                // Move on to the next task
+                self.next(state, onStop);
             });
+
+            // Invoke this task
+            task.run.call(task, state);
+        }
+        else
+        {
+            stop('empty');
         }
 
         return this;
+    },
+
+    /** @brief  Empty the current run queue;
+     *
+     *  @return The queue length (integer);
+     */
+    empty: function() {
+        while (queue.pop());
+    },
+
+    /** @brief  Return the current queue length;
+     *
+     *  @return The queue length (integer);
+     */
+    queueLength: function() {
+        return queue.length;
     }
 };

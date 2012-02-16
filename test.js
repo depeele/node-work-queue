@@ -1,10 +1,33 @@
 var queue   = require('./queue.js');
 
+// Establish the tasks to execute
 queue.addTask(one,  complete);
-queue.addTask(two,  complete);
-queue.addTask(three,complete);
-queue.next({level: 0});
+queue.addTask(one,  complete);
+queue.addTask(one,  complete);
 
+// Begin execution
+queue.next({level: 0}, fullCompletion);
+
+/*****************************************************************************
+ * Task definitions.
+ *
+ */
+
+function fullCompletion(type, state, err, res)
+{
+    console.log('===============================');
+    console.log("fullCompletion: type[ %s ], state[ %j ], err[ %j ], res[ %j ]",
+                type, state, err, res);
+
+    var len = this.queueLength();
+    console.log("%d tasks in queue", len);
+
+    if (len > 0)
+    {
+        // Start it up again
+        queue.next(state, fullCompletion);
+    }
+}
 
 /** @brief  A shared-task completion routine.
  *  @param  state   Task state;
@@ -16,52 +39,51 @@ queue.next({level: 0});
 function complete(state, err, res)
 {
     console.log('complete: tid#%d, label[ %s ], '
-                +   'state[ %j ], err[ %j ], res[ %j ]',
+                +   'state[ %j ], res[ %j ]',
                 this.tid, this.label,
-                state, err, res);
+                state, res);
+    if (err)
+    {
+        console.log('**** ERROR: %j', err);
+    }
 
     return (err ? false : true);
 }
 
-function one(state, next)
+/** @brief  A task run routine.
+ *  @param  state   The processing state;
+ *
+ *  'this' is the currently running task.  Upon completion, this routine MUST
+ *  emit a 'complete' event:
+ *      this.emit('complete', err, res);
+ */
+function one(state)
 {
-    console.log('one: tid#%d, label[ %s ], state[ %j ]',
-                this.tid, this.label, state);
+    var self    = this;
 
-    var pause   = 4;
+    console.log('%s: state[ %j ]', self.label, state);
+
+    var cos     = Math.round(100 - (Math.random() * state.level * 20)) / 100,
+        pause   = Math.round(Math.random() * 4);
+
+    state.res = (state.res ? state.res + 1 : 1);
 
     function wait()
     {
-        console.log("one: wait...");
+        console.log("%s: wait (%d)...", self.label, pause);
         state.level++;
         if (--pause <= 0)
         {
             // continue on...
-            return next(null, 1);
+            return self.emit('complete',
+                             (Math.random() >= cos
+                                ? {error: 'random error'}
+                                : null),
+                              state.res);
         }
 
         setTimeout(wait, 100);
     }
 
     wait();
-}
-
-function two(state, next)
-{
-    console.log('two: tid#%d, label[ %s ], state[ %j ]',
-                this.tid, this.label, state);
-
-    state.level++;
-
-    next( (Math.random() >= 0.5 ? {error: 'random error'} : null), 2);
-}
-
-function three(state, next)
-{
-    console.log('three: tid#%d, label[ %s ], state[ %j ]',
-                this.tid, this.label, state);
-
-    state.level++;
-
-    next(null, 3);
 }
