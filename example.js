@@ -1,4 +1,5 @@
-var work    = require('./work-queue.js');
+var Queue   = require('./work-queue.js'),
+    work    = Queue.create();
 
 // Establish the tasks to execute
 work.push(one,  complete);
