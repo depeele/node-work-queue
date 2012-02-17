@@ -15,12 +15,13 @@ work.run({level: 0}, fullCompletion);
 
 function fullCompletion(type, state, err, res)
 {
-    console.log('===============================');
+    console.log('=======================================================');
     console.log("fullCompletion: type[ %s ], state[ %j ], err[ %j ], res[ %j ]",
                 type, state, err, res);
 
     var len = this.length();
-    console.log("%d tasks in work queue", len);
+    console.log("%d task%s remain in the work-queue",
+                len, (len === 1 ? '' : 's'));
 
     if (len > 0)
     {
@@ -29,9 +30,9 @@ function fullCompletion(type, state, err, res)
     }
 }
 
-/** @brief  A shared-task completion routine.
+/** @brief  A shared task-completion routine.
  *  @param  state   Task state;
- *  @param  err     If NOT null, and error;
+ *  @param  err     If NOT null, an error;
  *  @param  res     Any other result data;
  *
  *  @return false to terminate tasking;
@@ -54,8 +55,11 @@ function complete(state, err, res)
  *  @param  state   The processing state;
  *
  *  'this' is the currently running task.  Upon completion, this routine MUST
- *  emit a 'complete' event:
+ *  emit a 'complete' event for tasking to continue:
  *      this.emit('complete', err, res);
+ *
+ *      If 'err' is non-null, it indicates an error while 'res' provides any
+ *      run results.
  */
 function one(state)
 {
@@ -64,6 +68,7 @@ function one(state)
     console.log('%s: state[ %j ]', self.label, state);
 
     var cos     = Math.round(100 - (Math.random() * state.level * 20)) / 100,
+        err     = Math.random(),
         pause   = Math.round(Math.random() * 4);
 
     state.res = (state.res ? state.res + 1 : 1);
@@ -76,8 +81,8 @@ function one(state)
         {
             // continue on...
             return self.emit('complete',
-                             (Math.random() >= cos
-                                ? {error: 'random error'}
+                             (err >= cos
+                                ? {error: 'random error: '+ err}
                                 : null),
                               state.res);
         }
@@ -101,13 +106,14 @@ function last(state)
 
     console.log('%s (last): state[ %j ]', self.label, state);
 
-    var cos     = Math.round(100 - (Math.random() * state.level * 20)) / 100;
+    var cos = Math.round(100 - (Math.random() * state.level * 20)) / 100,
+        err = Math.random();
 
     state.res = (state.res ? state.res + 1 : 1);
 
     return self.emit('complete',
-                     (Math.random() >= cos
-                        ? {error: 'random error (last)'}
+                     (err >= cos
+                        ? {error: 'random error (last): '+ err}
                         : null),
                       state.res);
 }

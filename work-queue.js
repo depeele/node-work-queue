@@ -26,9 +26,11 @@ module.exports = {
     /** @brief  Add a task to the end of the work-queue.
      *  @param  run         The function to invoke when this task is ready for
      *                      execution.  When the task completes, it MUST emit
-     *                      a 'complete' event with two parameters, err, and
-     *                      res:
+     *                      a 'complete' event:
      *                          this.emit('complete', err, res);
+     *
+     *                          If 'err' is non-null, it indicates an error
+     *                          while 'res' provides any run results.
      *  @param  complete    If provided, this function will be invoked once
      *                      run() completes.  If this function returns false,
      *                      tasking will cease
@@ -71,37 +73,36 @@ module.exports = {
 
     /** @brief  Remove the task from the beginning of the work-queue and
      *          begin its execution.
-     *  @param  state   The current processing state;
+     *  @param  state   The processing state;
      *  @param  onStop  If provided, a function to invoke whenever tasking is
-     *                  stopped, either due to a task.complete() callback
-     *                  returning false or the queue being emptied
+     *                  stopped, whether due to a task.complete() callback
+     *                  returning false or the queue being emptied:
      *                      onStop(type, state, err, res);
      *
-     *                  Where 'type' may be 'error' or 'empty'.
+     *                      'type' may be 'stopped' or 'emptied'.
      *
      *  @return this for a fluent interface;
      */
     run: function(state, onStop) {
         var self    = this,
+            stop    = function(type, err, res) {
+                if (onStop && (typeof onStop === 'function'))
+                {
+                    onStop.call(self, type, state, err, res);
+                }
+            },
             task;
-
-        var stop    = function(type, err, res) {
-            if (onStop && (typeof onStop === 'function'))
-            {
-                onStop.call(self, type, state, err, res);
-            }
-        };
 
         if ( (task = self.shift()) )
         {
             task.once('complete', function(err, res) {
-                // If the callback returns false, terminate processing
                 if (task.complete.call(task, state, err, res) === false)
                 {
-                    return stop('error', err, res);
+                    // Stop tasking
+                    return stop('stopped', err, res);
                 }
 
-                // Move on to the next task
+                // Continue with the next task
                 self.run(state, onStop);
             });
 
@@ -110,23 +111,25 @@ module.exports = {
         }
         else
         {
-            stop('empty');
+            stop('emptied');
         }
+
+        return self;
+    },
+
+    /** @brief  Empty the work-queue;
+     *
+     *  @return this for a fluent interface;
+     */
+    empty: function() {
+        while (queue.pop());
 
         return this;
     },
 
-    /** @brief  Empty the current run queue;
+    /** @brief  Return the length of the work-queue;
      *
-     *  @return The queue length (integer);
-     */
-    empty: function() {
-        while (queue.pop());
-    },
-
-    /** @brief  Return the current queue length;
-     *
-     *  @return The queue length (integer);
+     *  @return The length of the work-queue;
      */
     length: function() {
         return queue.length;
